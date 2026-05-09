@@ -102,7 +102,9 @@ ELSW --> G8  : endstop signal
 @enduml
 ```
 
-> Render with any PlantUML-capable tool (VS Code PlantUML extension, `plantuml.jar`, or the [online server](https://www.plantuml.com/plantuml)).
+![System diagram](https://www.plantuml.com/plantuml/png/LPTRkCs47xNAGREGssWsSXrl76285XRbfsWJcDO-Ia2lz0IRHEHI8EaumJ50llK4-GIlKmFiIVfK3yRKT4MVTdk6aAWp7ppCv-6C_oWD95wcyIEPZgcCBjrEoxqkQQS4vW9BIHy_lG2mRFID05FS4v3pGHNJaoN6hG0oLPh3H6JcS9H3unlY2G9H7H9jh6-fa-w7xCLJoZN4E8VAakeK2GRmOtg3mTWGCA7bHHR7daY5lBq.png)
+
+> Source above — edit with any PlantUML-capable tool (VS Code PlantUML extension, `plantuml.jar`, or the [online server](https://www.plantuml.com/plantuml)).
 
 ## Files
 
