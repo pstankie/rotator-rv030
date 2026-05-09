@@ -94,6 +94,10 @@ class RotorConfig:
     az_axis_idx: int = 1
     el_axis_idx: int = 0
 
+    # AS5048A SPI CS pin (any free GPIO except 1/2 which are UART, and 7/8 used by endstops)
+    # GPIO 4 = J3 pin 14 — free and matches the ODrive docs example
+    az_spi_cs_gpio_pin: int = 4
+
 
 CFG = RotorConfig()
 _PUNCT_RE = re.compile(r"^[^\w\s\\\?\_#]")
@@ -152,21 +156,25 @@ class ODriveRotor:
         save to ODrive flash. The ODrive will reboot after save — re-run the script
         to start normally afterwards.
 
-        Wiring (ODrive v3.6, axis1 = AZ):
-          AS5048A VDD  → 3.3V  (M1 encoder connector pin 1)
-          AS5048A GND  → GND   (M1 encoder connector pin 2)
-          AS5048A CLK  → SPI_SCK  (GPIO 9 on J3 GPIO header — verify against your board's silkscreen)
-          AS5048A MISO → SPI_MISO (GPIO 11 on J3 — verify)
-          AS5048A CSn  → M1 encoder connector A pin (verify GPIO — must not share GPIO 8, already used for EL endstop)
-          AS5048A MOSI → leave unconnected (not needed for normal reads)
-        All SPI lines: add 100 Ω series resistors near ODrive if cable > 20 cm.
+        Wiring — all signals are on the J3 connector (20-pin header on ODrive v3.6):
+
+          AS5048A VDD  → 3.3V   J3 pin 1   (VCC)
+          AS5048A GND  → GND    J3 pin 2   (GND)
+          AS5048A CLK  → SCK    J3 pin 8   (SPI_SCK)
+          AS5048A MISO → MISO   J3 pin 9   (SPI_MISO)
+          AS5048A CSn  → GPIO4  J3 pin 14  (az_spi_cs_gpio_pin, free from UART/endstop GPIOs)
+          AS5048A MOSI → leave unconnected, or tie to 3.3V to save a wire (AMS encoders only)
+
+        Series resistors: 20–50 Ω on CLK (most noise-sensitive), 100 Ω on MISO/CSn,
+        placed close to the ODrive side of the cable.
         """
         az = self._axis(self.cfg.az_axis_idx)
+        az.encoder.config.abs_spi_cs_gpio_pin = self.cfg.az_spi_cs_gpio_pin
         az.encoder.config.mode = ENCODER_MODE_SPI_ABS_AMS
         az.encoder.config.cpr = 2 ** 14   # AS5048A: 14-bit = 16384 counts/rev
         az.encoder.config.use_index = False
-        print("[INFO] AS5048A SPI encoder configured on AZ axis{0} (CPR=16384).".format(
-            self.cfg.az_axis_idx))
+        print("[INFO] AS5048A SPI encoder configured on AZ axis{0} (CPR=16384, CS=GPIO{1}).".format(
+            self.cfg.az_axis_idx, self.cfg.az_spi_cs_gpio_pin))
         print("[INFO] Saving to flash — ODrive will reboot...")
         self.odrv.save_configuration()
         print("[INFO] Done. Re-run the script to start normally.")

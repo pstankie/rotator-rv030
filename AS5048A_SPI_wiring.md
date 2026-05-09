@@ -2,21 +2,48 @@
 
 ## Hardware wiring
 
-The AS5048A connects to ODrive v3.6 via the hardware SPI bus.  
-AZ = **axis1** (M1 encoder connector).
+All signals connect to the **J3 connector** (20-pin header) on ODrive v3.6.
 
-### Pin mapping
+### J3 connector pinout (full)
 
-| AS5048A pin | ODrive v3.6 | Notes |
-|-------------|-------------|-------|
-| VDD | 3.3V — M1 encoder connector pin 1 | Do **not** use 5V |
-| GND | GND — M1 encoder connector pin 2 | |
-| CLK | GPIO 9 — SPI_SCK (J3 GPIO header) | Verify against board silkscreen |
-| MISO / DO | GPIO 11 — SPI_MISO (J3) | Verify against board silkscreen |
-| CSn | M1 encoder connector A pin | Check ODrive v3.6 pinout — must **not** share GPIO 8 (used for EL endstop) |
-| MOSI / DI | leave unconnected | Not needed for normal reads |
+| J3 pin | Label | Used for |
+|--------|-------|----------|
+| 1 | VCC | AS5048A VDD |
+| 2 | GND | AS5048A GND |
+| 3 | CANH | (CAN bus — not used) |
+| 4 | CANL | (CAN bus — not used) |
+| 5 | GND | — |
+| 6 | AVCC | — |
+| 7 | AGND | — |
+| 8 | SCK | AS5048A CLK |
+| 9 | MISO | AS5048A MISO / DO |
+| 10 | MOSI | leave unconnected, or tie to 3.3V (AMS encoders only) |
+| 11 | GPIO 1 | (UART TX — avoid for CS) |
+| 12 | GPIO 2 | (UART RX — avoid for CS) |
+| 13 | GPIO 3 | free |
+| **14** | **GPIO 4** | **AS5048A CSn ← use this** |
+| 15 | GPIO 5 | free |
+| 16 | GPIO 6 | free |
+| 17 | GPIO 7 | AZ home endstop |
+| 18 | GPIO 8 | EL home endstop |
+| 19 | GND | — |
+| 20 | GND | — |
 
-> **Series resistors**: add 100 Ω on CLK, MISO, and CSn close to the ODrive if the cable is longer than ~20 cm.
+### AS5048A → ODrive summary
+
+| AS5048A pin | ODrive J3 pin | Signal |
+|-------------|---------------|--------|
+| VDD | pin 1 | VCC (3.3 V) |
+| GND | pin 2 | GND |
+| CLK | pin 8 | SCK |
+| MISO / DO | pin 9 | MISO |
+| CSn | pin 14 | GPIO 4 (`az_spi_cs_gpio_pin = 4`) |
+| MOSI / DI | leave unconnected | (tie to 3.3V to save a wire) |
+
+> **Series resistors** (place near the ODrive end of the cable):
+> - CLK: 20–50 Ω (most susceptible to noise per ODrive docs)
+> - MISO / CSn: 100 Ω
+> Not needed for cables under ~10 cm.
 
 ### Encoder placement
 

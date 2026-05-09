@@ -65,17 +65,18 @@ rotor.configure_az_spi_encoder_and_save()
 # ODrive reboots — re-run main script normally after this
 ```
 
-**SPI wiring (ODrive v3.6, axis1 / M1 encoder connector)**:
-| AS5048A pin | ODrive v3.6 |
-|-------------|-------------|
-| VDD (3.3V) | 3.3V — M1 encoder connector pin 1 |
-| GND | GND — M1 encoder connector pin 2 |
-| CLK | SPI_SCK — GPIO 9 (J3 GPIO header; verify against board silkscreen) |
-| MISO / DO | SPI_MISO — GPIO 11 (verify) |
-| CSn | M1 encoder A pin — GPIO 8 (verify) |
-| MOSI / DI | leave unconnected |
+**SPI wiring — all on J3 connector (ODrive v3.6)**:
+| AS5048A pin | J3 pin | Signal |
+|-------------|--------|--------|
+| VDD | 1 | VCC (3.3 V) |
+| GND | 2 | GND |
+| CLK | 8 | SCK |
+| MISO / DO | 9 | MISO |
+| CSn | 14 | GPIO 4 (`az_spi_cs_gpio_pin = 4`) |
+| MOSI / DI | — | leave unconnected (or tie to 3.3 V) |
 
-> Add 100 Ω series resistors on CLK/MISO/CSn near the ODrive if cable is longer than ~20 cm.
+GPIO 4 is free — GPIOs 1/2 are UART, GPIO 7 = AZ endstop, GPIO 8 = EL endstop.  
+Series resistors: 20–50 Ω on CLK, 100 Ω on MISO/CSn (place near ODrive end).
 
 **After encoder offset calibration** runs once, set `encoder.config.pre_calibrated = True` and save to avoid re-running the 60 s calibration on every startup.
 

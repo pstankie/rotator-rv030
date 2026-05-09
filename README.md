@@ -32,12 +32,12 @@ package "ODrive v3.6" #DDEEFF {
   component "axis1  (AZ)" <<hw>> as AX1
   component "axis0  (EL)" <<hw>> as AX0
 
-  package "GPIO / SPI" #C8E0FF {
-    component "GPIO 7\nAZ endstop in" <<hw>> as G7
-    component "GPIO 8\nEL endstop in" <<hw>> as G8
-    component "GPIO 9\nSPI SCK" <<hw>> as G9
-    component "GPIO 11\nSPI MISO" <<hw>> as G11
-    component "M1 enc. A pin\nSPI CS  (verify GPIO)" <<hw>> as GCS
+  package "J3 connector / GPIO" #C8E0FF {
+    component "J3 pin 8\nSCK" <<hw>> as G9
+    component "J3 pin 9\nMISO" <<hw>> as G11
+    component "J3 pin 14\nGPIO 4  (SPI CS)" <<hw>> as GCS
+    component "J3 pin 17\nGPIO 7  (AZ endstop)" <<hw>> as G7
+    component "J3 pin 18\nGPIO 8  (EL endstop)" <<hw>> as G8
   }
 }
 
