@@ -18,6 +18,7 @@ from odrive.enums import (
     CONTROL_MODE_VELOCITY_CONTROL,
     CONTROL_MODE_TORQUE_CONTROL,
     INPUT_MODE_PASSTHROUGH,
+    ENCODER_MODE_SPI_ABS_AMS,
 )
 
 
@@ -26,7 +27,10 @@ class RotorConfig:
     listen_host: str = "0.0.0.0"
     listen_port: int = 4533
 
-    az_deg_per_turn: float = 6.0
+    # AZ encoder is AS5048A on the OUTPUT shaft (after 60:1 worm).
+    # 1 encoder turn = 360° of antenna rotation, so deg_per_turn = 360.
+    # All AZ velocity/accel limits are in OUTPUT turns/s (÷60 vs motor-shaft values).
+    az_deg_per_turn: float = 360.0
     el_deg_per_turn: float = 6.0
 
     az_min_deg: float = 0.0
@@ -36,7 +40,8 @@ class RotorConfig:
 
     az_wrap_report: bool = True
 
-    az_max_turns_per_s: float = 2.0
+    # AZ in output turns/s: 0.033 ≈ 12°/s (same physical speed as the previous 2.0 motor turns/s)
+    az_max_turns_per_s: float = 0.033
     el_max_turns_per_s: float = 2.0
 
     zero_on_startup: bool = True
@@ -54,7 +59,8 @@ class RotorConfig:
     el_home_active_high: bool = True
     az_home_offset_deg: float = 0.0
     el_home_offset_deg: float = 0.0
-    az_home_search_turns_s: float = 0.5
+    # AZ homing speed in output turns/s: ≈5°/s for gentle endstop approach
+    az_home_search_turns_s: float = 0.014
     el_home_search_turns_s: float = 0.4
     home_debounce_ms: float = 10.0
 
@@ -75,9 +81,10 @@ class RotorConfig:
     motor_current_lim_margin_a: float = 3.0
     requested_current_range_a: float = 20.0
 
-    az_vel_limit_turns_s: float = 2.0
-    az_accel_limit_turns_s2: float = 2.0
-    az_decel_limit_turns_s2: float = 2.0
+    # AZ in output turns/s (÷60 vs motor-shaft encoder values)
+    az_vel_limit_turns_s: float = 0.033
+    az_accel_limit_turns_s2: float = 0.033
+    az_decel_limit_turns_s2: float = 0.033
 
     el_vel_limit_turns_s: float = 2.0
     el_accel_limit_turns_s2: float = 2.0
@@ -139,6 +146,30 @@ class ODriveRotor:
         print("Finding ODrive...")
         self.odrv = odrive.find_any()
         print("Connected to ODrive.")
+
+    def configure_az_spi_encoder_and_save(self) -> None:
+        """One-time setup: configure AS5048A SPI absolute encoder on the AZ axis and
+        save to ODrive flash. The ODrive will reboot after save — re-run the script
+        to start normally afterwards.
+
+        Wiring (ODrive v3.6, axis1 = AZ):
+          AS5048A VDD  → 3.3V  (M1 encoder connector pin 1)
+          AS5048A GND  → GND   (M1 encoder connector pin 2)
+          AS5048A CLK  → SPI_SCK  (GPIO 9 on J3 GPIO header — verify against your board's silkscreen)
+          AS5048A MISO → SPI_MISO (GPIO 11 on J3 — verify)
+          AS5048A CSn  → M1 encoder connector A pin (GPIO 8 — verify)
+          AS5048A MOSI → leave unconnected (not needed for normal reads)
+        All SPI lines: add 100 Ω series resistors near ODrive if cable > 20 cm.
+        """
+        az = self._axis(self.cfg.az_axis_idx)
+        az.encoder.config.mode = ENCODER_MODE_SPI_ABS_AMS
+        az.encoder.config.cpr = 2 ** 14   # AS5048A: 14-bit = 16384 counts/rev
+        az.encoder.config.use_index = False
+        print("[INFO] AS5048A SPI encoder configured on AZ axis{0} (CPR=16384).".format(
+            self.cfg.az_axis_idx))
+        print("[INFO] Saving to flash — ODrive will reboot...")
+        self.odrv.save_configuration()
+        print("[INFO] Done. Re-run the script to start normally.")
 
     def clear_errors_if_supported(self) -> None:
         try:
@@ -641,7 +672,8 @@ class ODriveRotor:
             ),
             "Firmware note: startup calibration enabled in this script",
             "Firmware note: min_endstop homing configured for AZ/EL home switches",
-            "Gear note: current build assumes motor encoders through 60:1 worm drives",
+            "Encoder AZ: AS5048A SPI absolute on output shaft (CPR=16384, axis{0})".format(self.cfg.az_axis_idx),
+            "Encoder EL: incremental on motor shaft (axis{0})".format(self.cfg.el_axis_idx),
             "Axis mapping: AZ=axis{0} / EL=axis{1}".format(self.cfg.az_axis_idx, self.cfg.el_axis_idx),
             "Home config: AZ GPIO {0} / EL GPIO {1}".format(self.cfg.az_home_gpio_num, self.cfg.el_home_gpio_num),
         ]
