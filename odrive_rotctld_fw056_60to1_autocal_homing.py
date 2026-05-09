@@ -157,7 +157,7 @@ class ODriveRotor:
           AS5048A GND  → GND   (M1 encoder connector pin 2)
           AS5048A CLK  → SPI_SCK  (GPIO 9 on J3 GPIO header — verify against your board's silkscreen)
           AS5048A MISO → SPI_MISO (GPIO 11 on J3 — verify)
-          AS5048A CSn  → M1 encoder connector A pin (GPIO 8 — verify)
+          AS5048A CSn  → M1 encoder connector A pin (verify GPIO — must not share GPIO 8, already used for EL endstop)
           AS5048A MOSI → leave unconnected (not needed for normal reads)
         All SPI lines: add 100 Ω series resistors near ODrive if cable > 20 cm.
         """

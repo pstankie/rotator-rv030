@@ -13,7 +13,7 @@ AZ = **axis1** (M1 encoder connector).
 | GND | GND — M1 encoder connector pin 2 | |
 | CLK | GPIO 9 — SPI_SCK (J3 GPIO header) | Verify against board silkscreen |
 | MISO / DO | GPIO 11 — SPI_MISO (J3) | Verify against board silkscreen |
-| CSn | GPIO 8 — M1 encoder A pin | Verify against board silkscreen |
+| CSn | M1 encoder connector A pin | Check ODrive v3.6 pinout — must **not** share GPIO 8 (used for EL endstop) |
 | MOSI / DI | leave unconnected | Not needed for normal reads |
 
 > **Series resistors**: add 100 Ω on CLK, MISO, and CSn close to the ODrive if the cable is longer than ~20 cm.
