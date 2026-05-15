@@ -23,6 +23,7 @@ that print has been removed from the server to avoid flooding its output.
 """
 from __future__ import annotations
 
+import ast
 import curses
 import re
 import socket
@@ -36,6 +37,135 @@ DEFAULT_HOST = "localhost"
 DEFAULT_PORT = 4533
 POLL_INTERVAL = 1.0
 SOCKET_TIMEOUT = 3.0
+
+# ── ODrive error code tables (firmware 0.5.6) ─────────────────────────────────
+
+_AXIS_ERRORS = {
+    0x00001: ("INVALID_STATE",               "check calibration order"),
+    0x00040: ("MOTOR_FAILED",                "see motor errors below"),
+    0x00080: ("SENSORLESS_ESTIMATOR_FAILED", ""),
+    0x00100: ("ENCODER_FAILED",              "see encoder errors below"),
+    0x00200: ("CONTROLLER_FAILED",           "see controller errors below"),
+    0x00800: ("WATCHDOG_TIMER_EXPIRED",      "watchdog not fed in time"),
+    0x01000: ("MIN_ENDSTOP_PRESSED",         "min endstop triggered"),
+    0x02000: ("MAX_ENDSTOP_PRESSED",         "max endstop triggered"),
+    0x04000: ("ESTOP_REQUESTED",             "CAN e-stop message received"),
+    0x20000: ("HOMING_WITHOUT_ENDSTOP",      "min endstop not enabled"),
+    0x40000: ("OVER_TEMP",                   "see motor errors for details"),
+    0x80000: ("UNKNOWN_POSITION",            "no valid position estimate"),
+}
+
+_MOTOR_ERRORS = {
+    0x000000001: ("PHASE_RESISTANCE_OUT_OF_RANGE", "check motor lead connections"),
+    0x000000002: ("PHASE_INDUCTANCE_OUT_OF_RANGE",  "check motor lead connections"),
+    0x000000008: ("DRV_FAULT",                      "gate driver fault; check PSU ripple"),
+    0x000000010: ("CONTROL_DEADLINE_MISSED",        ""),
+    0x000000080: ("MODULATION_MAGNITUDE",           "bus voltage too low for requested current"),
+    0x000000400: ("CURRENT_SENSE_SATURATION",       "increase requested_current_range"),
+    0x000001000: ("CURRENT_LIMIT_VIOLATION",        "increase current_lim_margin"),
+    0x000010000: ("MODULATION_IS_NAN",              ""),
+    0x000020000: ("MOTOR_THERMISTOR_OVER_TEMP",     "motor too hot"),
+    0x000040000: ("FET_THERMISTOR_OVER_TEMP",       "ODrive FETs too hot"),
+    0x000080000: ("TIMER_UPDATE_MISSED",            ""),
+    0x000100000: ("CURRENT_MEASUREMENT_UNAVAILABLE",""),
+    0x000200000: ("CONTROLLER_FAILED",              "FOC controller failed"),
+    0x000400000: ("I_BUS_OUT_OF_RANGE",             "DC current outside configured limits"),
+    0x000800000: ("BRAKE_RESISTOR_DISARMED",        "send R to re-arm brake resistor"),
+    0x001000000: ("SYSTEM_LEVEL",                   "check ODrive system-level errors"),
+    0x002000000: ("BAD_TIMING",                     "main loop out of sync with motor loop"),
+    0x004000000: ("UNKNOWN_PHASE_ESTIMATE",         "calibrate the encoder first"),
+    0x008000000: ("UNKNOWN_PHASE_VEL",              ""),
+    0x010000000: ("UNKNOWN_TORQUE",                 ""),
+    0x020000000: ("UNKNOWN_CURRENT_COMMAND",        "check controller configuration"),
+    0x040000000: ("UNKNOWN_CURRENT_MEASUREMENT",    ""),
+    0x080000000: ("UNKNOWN_VBUS_VOLTAGE",           ""),
+    0x100000000: ("UNKNOWN_VOLTAGE_COMMAND",        ""),
+    0x200000000: ("UNKNOWN_GAINS",                  "run motor calibration"),
+    0x400000000: ("CONTROLLER_INITIALIZING",        ""),
+    0x800000000: ("UNBALANCED_PHASES",              ""),
+}
+
+_ENCODER_ERRORS = {
+    0x001: ("UNSTABLE_GAIN",            ""),
+    0x002: ("CPR_POLEPAIRS_MISMATCH",   "check CPR and pole_pairs settings"),
+    0x004: ("NO_RESPONSE",              "check encoder wiring/power"),
+    0x008: ("UNSUPPORTED_ENCODER_MODE", ""),
+    0x010: ("ILLEGAL_HALL_STATE",       "add 22 nF caps on A/B/Z to GND"),
+    0x020: ("INDEX_NOT_FOUND_YET",      "encoder has no index pin"),
+    0x040: ("ABS_SPI_TIMEOUT",          "SPI timeout — check J3 wiring and series resistors"),
+    0x080: ("ABS_SPI_COM_FAIL",         "SPI comm fail — check J3 pins 8/9/14"),
+    0x100: ("ABS_SPI_NOT_READY",        "encoder not ready after power-up"),
+    0x200: ("HALL_NOT_CALIBRATED_YET",  "run Hall polarity calibration"),
+}
+
+_CONTROLLER_ERRORS = {
+    0x01: ("OVERSPEED",              "increase vel_limit in config"),
+    0x02: ("INVALID_INPUT_MODE",     "check input_mode setting"),
+    0x04: ("UNSTABLE_GAIN",          "reduce current_control_bandwidth"),
+    0x08: ("INVALID_MIRROR_AXIS",    ""),
+    0x10: ("INVALID_LOAD_ENCODER",   ""),
+    0x20: ("INVALID_ESTIMATE",       ""),
+    0x40: ("INVALID_CIRCULAR_RANGE", ""),
+    0x80: ("SPINOUT_DETECTED",       "encoder slipping or wrong offset calibration"),
+}
+
+_SYSTEM_ERRORS = {
+    0x01: ("CONTROL_ITERATION_MISSED", ""),
+    0x02: ("DC_BUS_UNDER_VOLTAGE",      "check power supply voltage"),
+    0x04: ("DC_BUS_OVER_VOLTAGE",       "add/check brake resistor"),
+    0x08: ("DC_BUS_OVER_REGEN_CURRENT", "check brake resistor rating"),
+    0x10: ("DC_BUS_OVER_CURRENT",       "reduce motor current limits"),
+    0x20: ("BRAKE_DEADTIME_VIOLATION",  ""),
+    0x40: ("BRAKE_DUTY_CYCLE_NAN",      ""),
+    0x80: ("INVALID_BRAKE_RESISTANCE",  "check brake_resistance config value"),
+}
+
+_ERROR_TABLES = {
+    "axis":       _AXIS_ERRORS,
+    "motor":      _MOTOR_ERRORS,
+    "encoder":    _ENCODER_ERRORS,
+    "controller": _CONTROLLER_ERRORS,
+    "system":     _SYSTEM_ERRORS,
+}
+
+
+def _decode_errors(err_str: str) -> list:
+    """Parse the errors string from the T command and return decoded flag list.
+
+    Input examples:
+      "none"
+      "{'axis': '0x100', 'encoder': '0x40'}"
+
+    Returns a list of (component, flag_name, hint) tuples, empty when no errors.
+    """
+    if not err_str or err_str in ("none", "—", ""):
+        return []
+    try:
+        d = ast.literal_eval(err_str)
+        if not isinstance(d, dict):
+            return [("?", err_str, "")]
+    except Exception:
+        return [("?", err_str, "")]
+
+    result = []
+    for comp, val_str in d.items():
+        try:
+            val = int(val_str, 16) if isinstance(val_str, str) else int(val_str)
+        except (ValueError, TypeError):
+            result.append((comp, str(val_str), ""))
+            continue
+        if val == 0:
+            continue
+        table = _ERROR_TABLES.get(comp, {})
+        matched = False
+        for bit, (name, hint) in sorted(table.items()):
+            if val & bit:
+                result.append((comp, name, hint))
+                matched = True
+        if not matched:
+            result.append((comp, "0x{0:x}".format(val), "unknown error code"))
+    return result
+
 
 _AXIS_STATES = {
     0:  "UNDEFINED",
@@ -325,8 +455,17 @@ def _draw(win, st: MonitorState, host: str, port: int) -> None:
             row += 1
 
         _put(win, row, 2, "Errors   ", LB)
-        _put(win, row, 11, ax.errors, ER if has_errors else OK)
-        row += 1
+        decoded = _decode_errors(ax.errors)
+        if not decoded:
+            _put(win, row, 11, "none", OK)
+            row += 1
+        else:
+            for comp, name, hint in decoded:
+                flag_text = "{0}: {1}".format(comp, name)
+                _put(win, row, 11, flag_text, ER)
+                if hint:
+                    _put(win, row, 11 + len(flag_text) + 1, "— " + hint, DM)
+                row += 1
 
         _put(win, row, 2, "Endstop  ", LB)
         _put(win, row, 11, ax.endstop_str, WA if triggered else VA)
