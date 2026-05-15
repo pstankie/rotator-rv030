@@ -798,7 +798,6 @@ class RotctldServer:
 
                 elif cmd.upper() == "T":
                     status = self.rotor.get_status()
-                    print("[STATUS]\n{0}".format(status))
                     if erp_prefix is None:
                         writer.write((status + "\nRPRT 0\n").encode())
                     else:
