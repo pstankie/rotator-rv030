@@ -4,6 +4,10 @@
 
 All signals connect to the **J3 connector** (20-pin header) on ODrive v3.6.
 
+### CS pin selection
+
+Only **GPIO 1–6** are available on this build — GPIO 7 (AZ endstop) and GPIO 8 (EL endstop) are already taken. Of the remaining six, **GPIO 1 and 2 are UART** and must not be used for CS. That leaves GPIOs 3, 4, 5, 6. **GPIO 4 (J3 pin 14)** is used, matching the ODrive docs example.
+
 ### J3 connector pinout (full)
 
 | J3 pin | Label | Used for |

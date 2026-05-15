@@ -19,7 +19,7 @@ Three logical layers, all in one file:
 1. **`RotorConfig` dataclass** — central configuration. All tuning lives here (gear ratios, axis limits, GPIO pins, current limits, homing speeds, etc.). The singleton `CFG = RotorConfig()` is used throughout. Edit fields directly to change hardware parameters.
 
 2. **`ODriveRotor` class** — hardware abstraction. Translates degree-based commands into ODrive turn-based setpoints. Manages axis state machine transitions, calibration, homing, and error recovery. Key internals:
-   - Position is tracked in *turns* internally; degrees are computed via `az_deg_per_turn` / `el_deg_per_turn` (currently 6.0°/turn for 60:1 worm drive).
+   - Position is tracked in *turns* internally; degrees are computed via `az_deg_per_turn` / `el_deg_per_turn`. AZ = **360.0°/turn** (AS5048A on output shaft, 1 encoder rev = 1 full antenna rotation). EL = **6.0°/turn** (motor-shaft incremental encoder through 60:1 worm).
    - Software zero offsets (`az_offset_turns`, `el_offset_turns`) are set at startup or after homing. `set_zero_here()` captures the current encoder position as the software zero.
    - AZ = `axis1`, EL = `axis0` (see `az_axis_idx` / `el_axis_idx` in `RotorConfig`).
    - Axes are accessed via `self._axis(idx)` → `odrv.axis0` / `odrv.axis1`.
